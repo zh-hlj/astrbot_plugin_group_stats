@@ -9,9 +9,6 @@ class GroupStatsPlugin(Star):
     def __init__(self, ctx):
         super().__init__(ctx)
         self.db = os.path.join(self.context.path, "group_stats.db")
-        self._init_db()
-
-    def _init_db(self):
         with sqlite3.connect(self.db) as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS activity(
