@@ -4,11 +4,14 @@ from astrbot.api import logger
 import sqlite3, os
 from datetime import datetime, timedelta
 
-@register("group_stats", "user", "群聊活跃统计", "1.1.0")
+@register("group_stats", "user", "群聊活跃统计", "1.2.1")
 class GroupStatsPlugin(Star):
     def __init__(self, ctx):
         super().__init__(ctx)
         self.db = os.path.join(self.context.path, "group_stats.db")
+        self._init_db()
+
+    def _init_db(self):
         with sqlite3.connect(self.db) as conn:
             conn.execute("""
                 CREATE TABLE IF NOT EXISTS activity(
