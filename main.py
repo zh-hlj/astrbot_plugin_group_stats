@@ -1,4 +1,4 @@
-from astrbot.api.star import Star, register
+from astrbot.api.star import Star, register, Context
 from astrbot.api.event import filter, AstrMessageEvent
 from astrbot.api.event.filter import EventMessageType
 from astrbot.api import logger
