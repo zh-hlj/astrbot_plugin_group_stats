@@ -8,8 +8,8 @@ from datetime import datetime, timedelta
 
 @register("group_stats", "user", "群聊活跃统计", "1.2.1", "https://github.com/zh-hlj/astrbot_plugin_group_stats")
 class GroupStatsPlugin(Star):
-    def __init__(self, config):
-        super().__init__(config)
+    def __init__(self, context):
+        super().__init__(context)
         plugin_data_path = get_astrbot_data_path() / "plugin_data" / "astrbot_plugin_group_stats"
         os.makedirs(plugin_data_path, exist_ok=True)
         self.db = os.path.join(plugin_data_path, "group_stats.db")
