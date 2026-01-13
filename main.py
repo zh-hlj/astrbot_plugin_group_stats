@@ -1,14 +1,18 @@
 from astrbot.api.star import Star, register
 from astrbot.api.event import filter, AstrMessageEvent
+from astrbot.api.event.filter import EventMessageType
 from astrbot.api import logger
+from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 import sqlite3, os
 from datetime import datetime, timedelta
 
-@register("group_stats", "user", "群聊活跃统计", "1.2.1")
+@register("group_stats", "user", "群聊活跃统计", "1.2.1", "https://github.com/zh-hlj/astrbot_plugin_group_stats")
 class GroupStatsPlugin(Star):
-    def __init__(self, ctx):
-        super().__init__(ctx)
-        self.db = os.path.join(self.context.path, "group_stats.db")
+    def __init__(self, config):
+        super().__init__(config)
+        plugin_data_path = get_astrbot_data_path() / "plugin_data" / "astrbot_plugin_group_stats"
+        os.makedirs(plugin_data_path, exist_ok=True)
+        self.db = os.path.join(plugin_data_path, "group_stats.db")
         self._init_db()
 
     def _init_db(self):
@@ -23,7 +27,7 @@ class GroupStatsPlugin(Star):
                 )
             """)
 
-    @filter.on_message_type(["group"])
+    @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def on_group_msg(self, event: AstrMessageEvent):
         gid = event.message_obj.group_id
         uid = event.get_sender_id()
@@ -59,3 +63,28 @@ class GroupStatsPlugin(Star):
             f"💬 消息：{total_msgs} 条"
             + (f"  📈 活跃率：{active_users/total*100:.1f}%" if total != "未知" else "")
         )
+    async def today_stats(self, event: AstrMessageEvent):
+        gid = event.message_obj.group_id
+        today = datetime.now().strftime("%Y-%m-%d")
+        with sqlite3.connect(self.db) as conn:
+            cur = conn.execute(
+                "SELECT COUNT(DISTINCT user_id), SUM(msg_count) FROM activity WHERE group_id=? AND date=?",
+                (gid, today),
+            )
+            active_users, total_msgs = cur.fetchone()
+        members = await self.context.get_group_member_list(gid)
+        total = len(members) if members else "未知"
+        await event.send(
+            f"📊 今日实时统计（{today}）\n"
+            f"👥 群成员：{total}人\n"
+            f"🔥 已活跃：{active_users or 0} 人\n"
+            f"💬 消息：{total_msgs or 0} 条"
+            + (f"  📈 活跃率：{(active_users or 0)/total*100:.1f}%" if total != "未知" else "")
+        )
+
+    @filter.command("在线人数")
+    async def online_count(self, event: AstrMessageEvent):
+        gid = event.message_obj.group_id
+        members = await self.context.get_group_member_list(gid)
+        total = len(members) if members else "未知"
+        await event.send(f"👥 当前群聊成员总数：{total}人")
