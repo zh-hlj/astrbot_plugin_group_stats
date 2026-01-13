@@ -1,6 +1,6 @@
 name: astrbot_plugin_group_stats # 插件唯一识别名，以 astrbot_plugin_ 前缀开头
 desc: 群聊活跃统计与推送插件 # 插件简短描述
-author: 你的名字 # 作者
+author: zhhlj & Kimi AI # 作者
 version: 1.0.0 # 插件版本号。格式：v1.1.1 或者 v1.1
 repo: https://github.com/zh-hlj/astrbot_plugin_group_stats # 插件的仓库地址
 github: https://github.com/你的用户名/astrbot_plugin_group_stats
