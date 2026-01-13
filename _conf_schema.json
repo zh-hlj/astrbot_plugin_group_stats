@@ -1,8 +1,8 @@
 {
   "target_groups": {
-    "description": "要开启活跃统计的群（多选）",
+    "description": "要开启统计/推送的群（留空=全部群）",
     "type": "list",
-    "hint": "留空表示所有群都开启",
+    "hint": "在列表里勾选群即可",
     "items": {
       "type": "qq_group"
     },
@@ -11,7 +11,7 @@
   "push_time": {
     "description": "每日自动推送时间（HH:MM）",
     "type": "string",
-    "hint": "例如 09:00",
+    "hint": "例如 09:00 或 22:30",
     "default": "09:00"
   }
 }
