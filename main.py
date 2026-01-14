@@ -2,13 +2,12 @@
 群聊在线人数监控与活跃度统计插件
 """
 import asyncio
+import json
 import os
 from datetime import datetime, timedelta
 from typing import Dict, List, Tuple, Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from tinydb import TinyDB, Query, where
-from tinydb.operations import increment
 
 from astrbot.api.event import (
     filter, AstrMessageEvent, MessageEventResult, GroupMessageEvent
@@ -32,23 +31,66 @@ class GroupMonitorPlugin(Star):
         self.context = context
         self.config = context.get_config("group_monitor") or {}
         
-        # 初始化数据库
-        db_path = os.path.join(os.path.dirname(__file__), "data", "group_monitor.db")
-        os.makedirs(os.path.dirname(db_path), exist_ok=True)
-        self.db = TinyDB(db_path)
+        # 数据文件路径
+        self.data_dir = os.path.join(os.path.dirname(__file__), "data")
+        os.makedirs(self.data_dir, exist_ok=True)
         
-        # 数据表
-        self.online_members = self.db.table("online_members")
-        self.activity_records = self.db.table("activity_records")
+        # 数据文件
+        self.online_file = os.path.join(self.data_dir, "online_members.json")
+        self.activity_file = os.path.join(self.data_dir, "activity_records.json")
+        
+        # 确保数据文件存在
+        self._init_data_files()
         
         # 缓存
-        self.online_cache: Dict[str, Dict[str, datetime]] = {}
-        self.activity_cache: Dict[str, Dict[str, int]] = {}
+        self.online_members: Dict[str, Dict[str, str]] = {}
+        self.activity_records: Dict[str, Dict[str, Dict[str, int]]] = {}
+        
+        # 加载数据
+        self._load_data()
         
         # 调度器
         self.scheduler = None
         
         logger.info("群聊监控插件初始化完成")
+    
+    def _init_data_files(self):
+        """初始化数据文件"""
+        for file_path in [self.online_file, self.activity_file]:
+            if not os.path.exists(file_path):
+                with open(file_path, 'w', encoding='utf-8') as f:
+                    json.dump({}, f)
+    
+    def _load_data(self):
+        """加载数据"""
+        try:
+            # 加载在线成员数据
+            if os.path.exists(self.online_file):
+                with open(self.online_file, 'r', encoding='utf-8') as f:
+                    self.online_members = json.load(f)
+            
+            # 加载活跃度数据
+            if os.path.exists(self.activity_file):
+                with open(self.activity_file, 'r', encoding='utf-8') as f:
+                    self.activity_records = json.load(f)
+                    
+        except Exception as e:
+            logger.error(f"加载数据失败: {e}")
+            self.online_members = {}
+            self.activity_records = {}
+    
+    def _save_data(self, data_type: str):
+        """保存数据"""
+        try:
+            if data_type == "online":
+                with open(self.online_file, 'w', encoding='utf-8') as f:
+                    json.dump(self.online_members, f, ensure_ascii=False, indent=2)
+            elif data_type == "activity":
+                with open(self.activity_file, 'w', encoding='utf-8') as f:
+                    json.dump(self.activity_records, f, ensure_ascii=False, indent=2)
+                    
+        except Exception as e:
+            logger.error(f"保存数据失败: {e}")
     
     async def initialize(self):
         """插件初始化"""
@@ -74,55 +116,36 @@ class GroupMonitorPlugin(Star):
             current_time = datetime.now()
             
             # 更新在线状态
-            if group_id not in self.online_cache:
-                self.online_cache[group_id] = {}
-            self.online_cache[group_id][member_id] = current_time
+            if group_id not in self.online_members:
+                self.online_members[group_id] = {}
+            self.online_members[group_id][member_id] = current_time.isoformat()
             
             # 更新活跃度
-            if group_id not in self.activity_cache:
-                self.activity_cache[group_id] = {}
-            self.activity_cache[group_id][member_id] = \
-                self.activity_cache[group_id].get(member_id, 0) + 1
+            if group_id not in self.activity_records:
+                self.activity_records[group_id] = {}
             
-            # 异步保存到数据库
-            asyncio.create_task(self._save_to_db(group_id, member_id))
+            current_date = current_time.date().isoformat()
+            if member_id not in self.activity_records[group_id]:
+                self.activity_records[group_id][member_id] = {}
+            
+            if current_date not in self.activity_records[group_id][member_id]:
+                self.activity_records[group_id][member_id][current_date] = 0
+            
+            self.activity_records[group_id][member_id][current_date] += 1
+            
+            # 异步保存数据
+            asyncio.create_task(self._save_data_async())
             
         except Exception as e:
             logger.error(f"处理群聊消息失败: {e}")
     
-    async def _save_to_db(self, group_id: str, member_id: str):
-        """保存数据到数据库"""
+    async def _save_data_async(self):
+        """异步保存数据"""
         try:
-            current_time = datetime.now()
-            current_date = current_time.date().isoformat()
-            
-            # 保存在线状态
-            self.online_members.upsert({
-                "group_id": group_id,
-                "member_id": member_id,
-                "last_seen": current_time.isoformat()
-            }, (where("group_id") == group_id) & (where("member_id") == member_id))
-            
-            # 保存活跃度
-            self.activity_records.upsert({
-                "group_id": group_id,
-                "member_id": member_id,
-                "date": current_date,
-                "message_count": 1
-            }, (where("group_id") == group_id) & 
-               (where("member_id") == member_id) & 
-               (where("date") == current_date))
-            
-            # 增加消息计数
-            self.activity_records.update(
-                {"message_count": increment("message_count")},
-                (where("group_id") == group_id) & 
-                (where("member_id") == member_id) & 
-                (where("date") == current_date)
-            )
-            
+            self._save_data("online")
+            self._save_data("activity")
         except Exception as e:
-            logger.error(f"保存数据失败: {e}")
+            logger.error(f"异步保存数据失败: {e}")
     
     @filter.command("群聊统计")
     async def get_group_stats(self, event: AstrMessageEvent):
@@ -178,22 +201,19 @@ class GroupMonitorPlugin(Star):
         try:
             cutoff_time = datetime.now() - timedelta(minutes=10)
             
-            # 从缓存获取
-            if group_id in self.online_cache:
-                online_count = sum(
-                    1 for last_seen in self.online_cache[group_id].values()
-                    if last_seen > cutoff_time
-                )
-                return online_count
+            if group_id not in self.online_members:
+                return 0
             
-            # 从数据库获取
-            Member = Query()
-            records = self.online_members.search(
-                (Member.group_id == group_id) & 
-                (Member.last_seen > cutoff_time.isoformat())
-            )
+            online_count = 0
+            for member_id, last_seen_str in self.online_members[group_id].items():
+                try:
+                    last_seen = datetime.fromisoformat(last_seen_str)
+                    if last_seen > cutoff_time:
+                        online_count += 1
+                except:
+                    continue
             
-            return len(records)
+            return online_count
             
         except Exception as e:
             logger.error(f"获取在线人数失败: {e}")
@@ -206,34 +226,25 @@ class GroupMonitorPlugin(Star):
         try:
             start_date = (datetime.now() - timedelta(hours=hours)).date().isoformat()
             
-            # 合并缓存和数据库数据
+            if group_id not in self.activity_records:
+                return 0, []
+            
             member_stats = {}
+            for member_id, dates in self.activity_records[group_id].items():
+                total_messages = 0
+                for date_str, count in dates.items():
+                    if date_str >= start_date:
+                        total_messages += count
+                
+                if total_messages >= min_messages:
+                    member_stats[member_id] = total_messages
             
-            # 从缓存获取
-            if group_id in self.activity_cache:
-                for member_id, count in self.activity_cache[group_id].items():
-                    member_stats[member_id] = count
-            
-            # 从数据库获取
-            Member = Query()
-            records = self.activity_records.search(
-                (Member.group_id == group_id) & 
-                (Member.date >= start_date) &
-                (Member.message_count >= min_messages)
+            # 排序
+            sorted_members = sorted(
+                member_stats.items(), 
+                key=lambda x: x[1], 
+                reverse=True
             )
-            
-            for record in records:
-                member_id = record["member_id"]
-                count = record.get("message_count", 0)
-                member_stats[member_id] = member_stats.get(member_id, 0) + count
-            
-            # 排序并过滤
-            sorted_members = [
-                (member_id, count) 
-                for member_id, count in member_stats.items() 
-                if count >= min_messages
-            ]
-            sorted_members.sort(key=lambda x: x[1], reverse=True)
             
             return len(sorted_members), sorted_members
             
@@ -247,7 +258,7 @@ class GroupMonitorPlugin(Star):
             send_time = self.config.get("send_time", "09:00")
             hour, minute = map(int, send_time.split(":"))
             
-            trigger = CronTrigger(hour=hour, minute=minute, second=0)
+            trigger = self.scheduler.schedulers[0].CronTrigger(hour=hour, minute=minute, second=0)
             
             self.scheduler.add_job(
                 func=self._send_daily_report,
@@ -298,7 +309,7 @@ class GroupMonitorPlugin(Star):
                 except Exception as e:
                     logger.error(f"向群 {group_id} 发送报告失败: {e}")
                 
-                await asyncio.sleep(1)  # 避免发送过快
+                await asyncio.sleep(1)
                 
         except Exception as e:
             logger.error(f"发送每日报告失败: {e}")
@@ -328,9 +339,9 @@ class GroupMonitorPlugin(Star):
             if self.scheduler:
                 self.scheduler.shutdown()
             
-            # 清理过期数据
-            cutoff_date = (datetime.now() - timedelta(days=30)).isoformat()
-            self.online_members.remove(where("last_seen") < cutoff_date)
+            # 保存最终数据
+            self._save_data("online")
+            self._save_data("activity")
             
             logger.info("群聊监控插件已卸载")
             

@@ -1,0 +1,1 @@
+# Web configuration module for group monitor plugin

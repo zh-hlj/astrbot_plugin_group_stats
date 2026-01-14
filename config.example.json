@@ -1,0 +1,9 @@
+{
+  "send_time": "09:00",
+  "target_groups": ["123456789", "987654321"],
+  "message_template": "📊 今日群聊报告\n在线人数: {online_count} 人\n昨日活跃: {active_count} 人\n活跃成员: {active_members}",
+  "enable_online_monitor": true,
+  "enable_activity_summary": true,
+  "activity_time_window": 24,
+  "min_active_messages": 3
+}

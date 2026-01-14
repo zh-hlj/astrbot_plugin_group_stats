@@ -115,12 +115,9 @@ Content-Type: application/json
 
 ## 数据存储
 
-插件使用 TinyDB 存储数据，数据库文件位于:
-- `data/group_monitor.db`
-
-数据表:
-- `online_members`: 在线成员记录
-- `activity_records`: 活跃度记录
+插件使用 JSON 文件存储数据，数据文件位于:
+- `data/online_members.json`: 在线成员记录
+- `data/activity_records.json`: 活跃度记录
 
 ## 注意事项
 
