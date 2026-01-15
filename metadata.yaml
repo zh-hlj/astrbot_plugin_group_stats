@@ -1,7 +1,7 @@
-name: group_monitor
-desc: 群聊在线人数监控与活跃度统计插件
-author: AstrBot Developer
-version: 1.0.0
-repo: https://github.com/astrbot/group_monitor_plugin
-requirements:
-  - apscheduler>=3.10.0
+name: astrbot_plugin_group_stats # 插件唯一识别名，以 astrbot_plugin_ 前缀开头
+desc: 群聊活跃统计与推送插件 # 插件简短描述
+author: zhhlj & Kimi AI # 作者
+version: 1.2.1 # 插件版本号。格式：v1.1.1 或者 v1.1
+repo: https://github.com/zh-hlj/astrbot_plugin_group_stats # 插件的仓库地址
+github: https://github.com/zh-hlj/astrbot_plugin_group_stats
+display_name: 群聊活跃统计 # 用于展示的名字，可以是方便人类阅读的名字（需要版本 >= v4.5.0，低版本不会报错，请放心填写）
